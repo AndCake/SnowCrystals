@@ -1,0 +1,8 @@
+fn get
+	dp = opendir "routes"
+	flakes = []
+	while (file = readdir dp) isnt false
+		if file[0] isnt '.' and "routes/{file}/home.snow"->file_exists()
+			flakes->array_push ['name': file]
+			
+	<- ["flakes": flakes, "base": _SERVER['SCRIPT_NAME']->dirname()]
