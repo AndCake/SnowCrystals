@@ -1,9 +1,9 @@
 ###* 
-	Section Snow Crystals
-	=====================
+	Snow Crystals
+	=============
 
-	This script is a simple micro-framework based on Snow with proper templating,
-	caching and custom routes.
+	This script is a simple micro-framework based on [Snow](http://github.com/AndCake/snow) 
+	with proper templating, caching and custom routes.
 
 	In order to write a new route, simply add a new directory in routes and add a new
 	snow file called after the action-part of the route in that directory. The URL
@@ -19,7 +19,7 @@
 	used in the template. Example for a URL of the format 
 	`http://<myserver>/<base-dir>/user/select/<id>`:
 
-		# file is routes/user/select.snow
+		# file is flakes/user/select.snow
 		import "lib/storage"
 		fn get(id)
 			store = STORAGE
@@ -28,7 +28,7 @@
 	The template is always called like the crystal. Example (the user object returned by
 	the above crystal code has a property `name`):
 
-		<!-- routes/user/select.tpl -->
+		<!-- flakes/user/select.tpl -->
 		<h1>Welcome {{name}}!</h1>
 		<p>Glad you made it here!</p>
 
@@ -37,12 +37,38 @@
 	current page should be cached. If it is anything else, it will generate an ETag cache 
 	entry.
 
-	If a 404, file not found error occurs, it tries to load the routes/error/404.snow and
+	By having a crystal return a "decorator" attribute with it's value pointing to a template
+	that has a `{{body}}` tag, you can wrap the decorator around the actual crystal's 
+	template.
+
+	Example:
+
+	Crystal "list":
+
+		fn get <- ['decorator': 'basehtml']
+
+	"list"'s template:
+
+		<span class='bold'>Hello world!</span>
+
+	Decorator `basehtml.tpl`:
+
+		<div class='page'>
+			{{body}}
+		</div>
+
+	Will result in:
+
+		<div class='page'>
+			<span class='bold'>Hello world!</span>
+		</div>
+
+	If a 404, file not found error occurs, it tries to load the flakes/error/404.snow and
 	execute it's `get`/`post`/`put` function. Afterwards it will render the 404.tpl template 
 	in the same directory. In case the action is not found, only the template will be rendered.
 
 	If any other error occurs during the execution of a custom action, it will always issue
-	a 500 error. Therefore it will try to load the routes/error/500.snow and execute it's 
+	a 500 error. Therefore it will try to load the flakes/error/500.snow and execute it's 
 	`get`/`post`/`put` function. Afterwards it will render the 500.tpl template in the same 
 	directory. In case the action is not found, only the template will be rendered.
 
@@ -109,25 +135,29 @@ header 'Server: '
 header 'X-Powered-By: '
 
 try
-	import "routes/{module}/{action}"
+	import "flakes/{module}/{action}"
 	type = _SERVER["REQUEST_METHOD"]->strtolower()
-	result = type->call_user_func_array(params)
+	data = type->call_user_func_array(params)
+	data['basedir'] = dirname(_SERVER['SCRIPT_NAME'])
 	type = if type is 'get' then '' else '-' + type
-	if "routes/{module}/{action % type}.tpl"->file_exists()
-		result = template "routes/{module}/{action % type}", result
+	if "flakes/{module}/{action % type}.tpl"->file_exists()
+		result = template "flakes/{module}/{action % type}", data
 	else
-		result = template "routes/{module}/{action}", result
+		result = template "flakes/{module}/{action}", data
+
+	if data['decorator']??
+		result = template "flakes/{module}/{data['decorator']}", ['body': result, 'basedir': dirname(_SERVER['SCRIPT_NAME'])]
 catch ex
 	page = if "Unable to find file"->in(ex.getMessage()) then "404" else "500"
 	result = []
 	try 
-		import "routes/error/{page}"
+		import "flakes/error/{page}"
 		result = type->call_user_func_array(params)
 	catch e
 		# ignore
 	CACHING = false
 	header "HTTP/1.1 {page} Problem"
-	result = template "routes/error/{page}", ['result': result, 'exception': ['message': ex.getMessage(), 'trace': ex.getTraceAsString()]]
+	result = template "flakes/error/{page}", ['result': result, 'exception': ['message': ex.getMessage(), 'trace': ex.getTraceAsString()]]
 
 if CACHING isnt false
 	# if the developer chose to set a caching number

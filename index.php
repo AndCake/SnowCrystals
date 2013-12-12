@@ -3,11 +3,11 @@ if(!function_exists('in')){function in($needle, $haystack){switch(gettype($hayst
 if(!function_exists('replace')){function replace($haystack, $pattern, $rep) { if (is_array($haystack)) { $pos = array_search($pattern, $haystack, true); if ($pos === false) return $haystack; return array_replace($haystack, Array($pos => $rep)); } $pp = '/^[^a-zA-Z0-9\\\\s].*' . str_replace('/', '\/', $pattern[0]) . '[imsxADSUXJu]*$/m'; if (preg_match($pp, $pattern)) return preg_replace($pattern, $rep, $haystack); else return str_replace($pattern, $rep, $haystack);}}
 if(!function_exists('template')){function template($file, $data, $rootCore = '$data', $eval = true, $depth = 0) { $code = str_replace('\'', '\\\'', (file_exists($file.'.tpl') ? file_get_contents($file . '.tpl') : $file)); $parseVar = function($var, $root = '$data') use ($rootCore) { if (trim($var) == '.') { return $root; } $parts = explode('.', trim($var)); if ($parts[0] == '') $start = $rootCore; else $start = $root . '[\'' . $parts[0] . '\']'; for ($i = 1; $i < count($parts); $i++) { $start .= '[\'' . $parts[$i]. '\']'; } return $start; }; $parseVars = function($code, $root = '$data') use ($parseVar) { preg_match_all('/\{\{(?!#\/\^)((?:[^}]|\}[^}])+)\}\}/m', $code, $matches); foreach ($matches[1] as $key => $match) { $var = $parseVar($match, $root); $var = '(is_object('.$var.') && is_callable('.$var.') ? '.$var.'() : '.$var . ')'; if (trim($match) != '.') { $var = 'function_exists(\''.$match.'\') ? '.$match.'() : ' . $var; } $code = str_replace($matches[0][$key], '\' . (' . $var . ') . \'', $code); } return $code; }; $parseTpl = function($code, $root = '$data') use ($depth, $file) { preg_match_all('/\{\{>((?:[^}]|\}[^\}])+)\}\}/m', $code, $matches); foreach ($matches[1] as $key => $match) { $code = str_replace($matches[0][$key], template(dirname((file_exists($file.'.tpl') ? $file : __FILE__))."/".trim($match), null, $root, false, $depth + 1), $code); } return $code; }; preg_match_all('/\{\{(#|\^)((?:[^}]|\}[^}])+)\}\}((?:[^{]|\{[^{]|\{\{[^#\^])*)\{\{\/\2\}\}/m', $code, $matches); foreach ($matches[1] as $key => $match) { $var = $parseVar($matches[2][$key]); if ($match == '^') { $code = str_replace($matches[0][$key], '\'; if (empty('.$var.')) { $__p .= \'' . $matches[3][$key] . '\'; } $__p .= \'', $code); } else if ($match == '#') { $replacement = '\'; if (!empty('.$var.')) { if (is_array('.$var.')) foreach (' . $var . ' as $counter => $entry'.$depth.') { $__p .= \''; $replacement .= $parseVars($parseTpl($matches[3][$key], '$entry'.$depth), '$entry'.$depth) . '\'; } else { $__p .= \'' . $matches[3][$key] . '\'; }} $__p .= \''; $code = str_replace($matches[0][$key], $replacement, $code); } } $code = $parseVars($parseTpl($code, $rootCore), $rootCore); if ($eval) { $code = '$__p = \'' . $code . '\';'; eval($code); return $__p; } return $code; }}
 /** 
-	Section Snow Crystals
-	=====================
+	Snow Crystals
+	=============
 
-	This script is a simple micro-framework based on Snow with proper templating,
-	caching and custom routes.
+	This script is a simple micro-framework based on [Snow](http://github.com/AndCake/snow) 
+	with proper templating, caching and custom routes.
 
 	In order to write a new route, simply add a new directory in routes and add a new
 	snow file called after the action-part of the route in that directory. The URL
@@ -23,7 +23,7 @@ if(!function_exists('template')){function template($file, $data, $rootCore = '$d
 	used in the template. Example for a URL of the format 
 	`http://<myserver>/<base-dir>/user/select/<id>`:
 
-		 file is routes/user/select.snow
+		 file is flakes/user/select.snow
 		import "lib/storage"
 		fn get(id)
 			store = STORAGE
@@ -32,7 +32,7 @@ if(!function_exists('template')){function template($file, $data, $rootCore = '$d
 	The template is always called like the crystal. Example (the user object returned by
 	the above crystal code has a property `name`):
 
-		<!-- routes/user/select.tpl -->
+		<!-- flakes/user/select.tpl -->
 		<h1>Welcome {{name}}!</h1>
 		<p>Glad you made it here!</p>
 
@@ -41,12 +41,38 @@ if(!function_exists('template')){function template($file, $data, $rootCore = '$d
 	current page should be cached. If it is anything else, it will generate an ETag cache 
 	entry.
 
-	If a 404, file not found error occurs, it tries to load the routes/error/404.snow and
+	By having a crystal return a "decorator" attribute with it's value pointing to a template
+	that has a `{{body}}` tag, you can wrap the decorator around the actual crystal's 
+	template.
+
+	Example:
+
+	Crystal "list":
+
+		fn get <- ['decorator': 'basehtml']
+
+	"list"'s template:
+
+		<span class='bold'>Hello world!</span>
+
+	Decorator `basehtml.tpl`:
+
+		<div class='page'>
+			{{body}}
+		</div>
+
+	Will result in:
+
+		<div class='page'>
+			<span class='bold'>Hello world!</span>
+		</div>
+
+	If a 404, file not found error occurs, it tries to load the flakes/error/404.snow and
 	execute it's `get`/`post`/`put` function. Afterwards it will render the 404.tpl template 
 	in the same directory. In case the action is not found, only the template will be rendered.
 
 	If any other error occurs during the execution of a custom action, it will always issue
-	a 500 error. Therefore it will try to load the routes/error/500.snow and execute it's 
+	a 500 error. Therefore it will try to load the flakes/error/500.snow and execute it's 
 	`get`/`post`/`put` function. Afterwards it will render the 500.tpl template in the same 
 	directory. In case the action is not found, only the template will be rendered.
 
@@ -126,15 +152,20 @@ $params  =  array_slice($list, $start);
 header('Server: ');
 header('X-Powered-By: ');
 try {
-	import("routes/" . ($module) . "/" . ($action) . "");
+	import("flakes/" . ($module) . "/" . ($action) . "");
 	$type  =  strtolower($_SERVER["REQUEST_METHOD"]);
-	$result  =  call_user_func_array($type, $params);
+	$data  =  call_user_func_array($type, $params);
+	$data['basedir']  =  dirname($_SERVER['SCRIPT_NAME']);
 	$type  =  ($type === 'get' ? '' : '-' . $type);
-	if (file_exists("routes/" . ($module) . "/" . ($action . $type) . ".tpl")) {
-		$result  =  template("routes/" . ($module) . "/" . ($action . $type) . "", $result);
+	if (file_exists("flakes/" . ($module) . "/" . ($action . $type) . ".tpl")) {
+		$result  =  template("flakes/" . ($module) . "/" . ($action . $type) . "", $data);
 	} else {
-		$result  =  template("routes/" . ($module) . "/" . ($action) . "", $result);
+		$result  =  template("flakes/" . ($module) . "/" . ($action) . "", $data);
 	}
+;
+	if ((!empty($data['decorator']))) {
+		$result  =  template("flakes/" . ($module) . "/" . ($data['decorator']) . "", Array('body' => $result, 'basedir' => dirname($_SERVER['SCRIPT_NAME'])));
+}
 ;
 	// end block;
 } catch (Exception $ex) {
@@ -142,7 +173,7 @@ $catchGuard = true;
 	$page  =  (in("Unable to find file", $ex->getMessage()) ? "404" : "500");
 	$result  =  Array();
 	try {
-		import("routes/error/" . ($page) . "");
+		import("flakes/error/" . ($page) . "");
 		$result  =  call_user_func_array($type, $params);
 } catch (Exception $e) {
 $catchGuard = true;
@@ -155,7 +186,7 @@ unset($catchGuard);
 ;
 	$CACHING  =  false;
 	header("HTTP/1.1 " . ($page) . " Problem");
-	$result  =  template("routes/error/" . ($page) . "", Array('result' => $result, 'exception' => Array('message' => $ex->getMessage(), 'trace' => $ex->getTraceAsString())));
+	$result  =  template("flakes/error/" . ($page) . "", Array('result' => $result, 'exception' => Array('message' => $ex->getMessage(), 'trace' => $ex->getTraceAsString())));
 }
 if (!isset($catchGuard)) {
 } else {
